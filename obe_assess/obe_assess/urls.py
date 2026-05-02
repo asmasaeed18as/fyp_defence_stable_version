@@ -15,15 +15,32 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path,include
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+
+def api_root(request):
+    """Root API endpoint for health check."""
+    return JsonResponse({
+        "status": "API is working",
+        "version": "1.0",
+        "endpoints": {
+            "users": "/api/users/",
+            "assessment": "/api/assessment/",
+            "courses": "/api/courses/",
+            "grading": "/api/grading/",
+            "analytics": "/api/analytics/"
+        }
+    })
+
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path("api/", api_root, name="api-root"),  # ✅ Root API endpoint
     path("api/users/", include("users.urls")),
     path("api/assessment/", include("assessment_creation.urls")),
     # âœ… OPTION A: If you want urls like /api/courses/
-    path('api/', include('course_management.urls')),
+    path('api/courses/', include('course_management.urls')),
     # âœ… NEW: Connect the Grading App here
     path("api/grading/", include("assessment_marking.urls")),
     path("api/analytics/", include("assessment_analytics.urls")),
