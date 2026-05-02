@@ -23,7 +23,8 @@ app.add_middleware(
 
 @app.get("/")
 def health_check():
-    return {"status": "LLM Service is live!", "model": "gemma3-1b"}
+    model_name = os.getenv("MODEL_NAME", "mistralai/Mistral-7B-Instruct-v0.1")
+    return {"status": "LLM Service is live!", "model": model_name}
 
 # ==========================================
 # 1. SHARED HELPERS
@@ -31,17 +32,20 @@ def health_check():
 
 import re
 
-def _get_groq_client():
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set")
-    base_url = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
-    return OpenAI(api_key=api_key, base_url=base_url)
-
-
-def call_ollama(prompt, model=None, options=None):
+def _get_vllm_client():
     """
-    Centralized function to call Groq via the OpenAI-compatible API.
+    Initialize OpenAI client pointing to local vLLM server.
+    vLLM provides an OpenAI-compatible API on localhost:8000
+    """
+    vllm_base_url = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+    
+    # vLLM doesn't require an API key for local deployment
+    return OpenAI(api_key="not-needed", base_url=vllm_base_url)
+
+
+def call_vllm(prompt, model=None, options=None):
+    """
+    Centralized function to call vLLM via the OpenAI-compatible API.
     """
     if options is None:
         options = {
@@ -49,21 +53,22 @@ def call_ollama(prompt, model=None, options=None):
             "top_p": 0.9
         }
 
-    model = model or os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")
+    model = model or os.getenv("MODEL_NAME", "mistralai/Mistral-7B-Instruct-v0.1")
 
-    print(f"--> Sending request to Groq ({model})...")
+    print(f"--> Sending request to vLLM ({model})...")
     try:
-        client = _get_groq_client()
-        resp = client.responses.create(
+        client = _get_vllm_client()
+        resp = client.chat.completions.create(
             model=model,
-            input=prompt,
+            messages=[{"role": "user", "content": prompt}],
             temperature=options.get("temperature", 0.2),
             top_p=options.get("top_p", 0.9),
+            max_tokens=2048
         )
-        return resp.output_text.strip()
+        return resp.choices[0].message.content.strip()
     except Exception as e:
-        print(f"? Groq Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Groq Error: {str(e)}")
+        print(f"? vLLM Error: {e}")
+        raise HTTPException(status_code=500, detail=f"vLLM Error: {str(e)}")
 
 # ==========================================
 # 2. FEATURE: ASSESSMENT GENERATION
@@ -277,14 +282,12 @@ Standard question and detailed model answer format. 'options' MUST be exactly nu
 """
 
     # 3. Call Ollama with strict hyperparameter tuning
-    ollama_options = {
+    vllm_options = {
         "temperature": 0.1,   
-        "top_k": 10,          
-        "num_predict": 10000, 
-        "num_ctx": 8192       
+        "top_p": 0.95
     }
     
-    result_text = call_ollama(prompt, model=os.getenv("GROQ_MODEL"), options=ollama_options)
+    result_text = call_vllm(prompt, model=os.getenv("MODEL_NAME"), options=vllm_options)
 
     print("\n" + "="*50)
     print(f"🤖 RAW LLM OUTPUT ({req.assessment_type}):")
@@ -355,8 +358,8 @@ You are a fair and objective academic assessor. Your task is to accurately mark 
 STRICT: Ensure 'marks_awarded' is an integer between 0 and {req.max_marks}.
 """
 
-    # 3. Call Ollama
-    raw_response = call_ollama(prompt)
+    # 3. Call vLLM
+    raw_response = call_vllm(prompt)
 
     # 4. Parse JSON
     cleaned_json = clean_and_extract_json(raw_response)

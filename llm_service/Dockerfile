@@ -1,20 +1,30 @@
-# Use the official lightweight Python image
-FROM python:3.11-slim
+# Use vLLM's OpenAI-compatible API image
+FROM vllm/vllm-openai:latest
 
-# Set the working directory inside the container
+# Set the working directory
 WORKDIR /app
 
-# Copy the requirements file first to leverage Docker's cache
+# Copy requirements (for any additional dependencies)
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install additional Python dependencies if needed
+RUN pip install --no-cache-dir -r requirements.txt || true
 
-# Copy the rest of the application code
+# Copy application code (optional, for logging/monitoring)
 COPY . .
 
-# Expose the port FastAPI will run on
+# Set environment variables
+ENV MODEL_NAME=${MODEL_NAME:-mistralai/Mistral-7B-Instruct-v0.1}
+ENV CUDA_VISIBLE_DEVICES=0
+ENV VLLM_LOGGING_LEVEL=info
+
+# Expose the port vLLM API runs on
 EXPOSE 8000
 
-# Command to run the application using uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start vLLM OpenAI API server
+CMD ["python", "-m", "vllm.entrypoints.openai.api_server", \
+     "--model", "$MODEL_NAME", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--dtype", "float16", \
+     "--max-model-len", "2048"]
