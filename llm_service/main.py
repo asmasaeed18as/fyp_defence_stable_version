@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -12,7 +13,7 @@ from fastapi.responses import JSONResponse
 import os
 from openai import OpenAI
 
-app = FastAPI(title="LLM Service (Hosted LLM)")
+app = FastAPI(title="LLM Service (Ollama)")
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 app.add_middleware(
     CORSMiddleware,
@@ -23,7 +24,7 @@ app.add_middleware(
 
 @app.get("/")
 def health_check():
-    model_name = os.getenv("MODEL_NAME", "mistralai/Mistral-7B-Instruct-v0.1")
+    model_name = os.getenv("MODEL_NAME", "gemma3:1b")
     return {"status": "LLM Service is live!", "model": model_name}
 
 # ==========================================
@@ -32,20 +33,20 @@ def health_check():
 
 import re
 
-def _get_vllm_client():
+def _get_ollama_client():
     """
-    Initialize OpenAI client pointing to local vLLM server.
-    vLLM provides an OpenAI-compatible API on localhost:8000
+    Initialize OpenAI client pointing to local Ollama server.
+    Ollama provides an OpenAI-compatible API on localhost:11434/v1
     """
-    vllm_base_url = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+    ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     
-    # vLLM doesn't require an API key for local deployment
-    return OpenAI(api_key="not-needed", base_url=vllm_base_url)
+    # Ollama doesn't require an API key for local deployment
+    return OpenAI(api_key="ollama", base_url=ollama_base_url)
 
 
-def call_vllm(prompt, model=None, options=None):
+def call_ollama(prompt, model=None, options=None):
     """
-    Centralized function to call vLLM via the OpenAI-compatible API.
+    Centralized function to call Ollama via the OpenAI-compatible API.
     """
     if options is None:
         options = {
@@ -53,22 +54,22 @@ def call_vllm(prompt, model=None, options=None):
             "top_p": 0.9
         }
 
-    model = model or os.getenv("MODEL_NAME", "mistralai/Mistral-7B-Instruct-v0.1")
+    model = model or os.getenv("MODEL_NAME", "gemma3:1b")
 
-    print(f"--> Sending request to vLLM ({model})...")
+    print(f"--> Sending request to Ollama ({model})...")
     try:
-        client = _get_vllm_client()
+        client = _get_ollama_client()
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=options.get("temperature", 0.2),
             top_p=options.get("top_p", 0.9),
-            max_tokens=2048
+            max_tokens=4096
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        print(f"? vLLM Error: {e}")
-        raise HTTPException(status_code=500, detail=f"vLLM Error: {str(e)}")
+        print(f"? Ollama Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Ollama Error: {str(e)}")
 
 # ==========================================
 # 2. FEATURE: ASSESSMENT GENERATION
@@ -146,7 +147,7 @@ Even for short questions, you MUST keep the "options" array in the JSON to avoid
         }}
     ]
 }}
-🛑 CRITICAL WARNING: YOU MUST GENERATE EXACTLY {num_questions} ITEMS.DO NOT LEAVE RUBRICS EMPTY. DO NOT STOP EARLY. YOUR LAST ITEM MUST HAVE "id": {num_questions}. 🛑
+🛑 CRITICAL WARNING: YOU MUST GENERATE EXACTLY {num_questions} ITEMS. DO NOT LEAVE RUBRICS EMPTY. DO NOT STOP EARLY. YOUR LAST ITEM MUST HAVE "id": {num_questions}. If you generate fewer than {num_questions} items, your output is INVALID. 🛑
 """
     elif req.assessment_type == "Lab Manual":
         prompt = f"""
@@ -180,6 +181,8 @@ The 'question' field MUST contain the Lab Task Scenario. The 'answer' field MUST
         }}
     ]
 }}
+
+🛑 CRITICAL: You MUST generate EXACTLY {num_questions} items. Do NOT stop early. Your last item MUST have "id": {num_questions}. If you generate fewer than {num_questions} items, your output is INVALID. 🛑
 """
     elif req.assessment_type == "Project Report":
         prompt = f"""
@@ -213,6 +216,8 @@ The 'question' field MUST contain the Problem Statement. The 'answer' field MUST
         }}
     ]
 }}
+
+🛑 CRITICAL: You MUST generate EXACTLY {num_questions} items. Do NOT stop early. Your last item MUST have "id": {num_questions}. If you generate fewer than {num_questions} items, your output is INVALID. 🛑
 """
     elif req.assessment_type == "Assignment":
         prompt = f"""
@@ -246,6 +251,8 @@ Questions must be open-ended requiring detailed work. The 'answer' should contai
         }}
     ]
 }}
+
+🛑 CRITICAL: You MUST generate EXACTLY {num_questions} items. Do NOT stop early. Your last item MUST have "id": {num_questions}. If you generate fewer than {num_questions} items, your output is INVALID. 🛑
 """
     else:  # Exam
         prompt = f"""
@@ -279,15 +286,17 @@ Standard question and detailed model answer format. 'options' MUST be exactly nu
         }}
     ]
 }}
+
+🛑 CRITICAL: You MUST generate EXACTLY {num_questions} items. Do NOT stop early. Your last item MUST have "id": {num_questions}. If you generate fewer than {num_questions} items, your output is INVALID. 🛑
 """
 
     # 3. Call Ollama with strict hyperparameter tuning
-    vllm_options = {
+    ollama_options = {
         "temperature": 0.1,   
         "top_p": 0.95
     }
     
-    result_text = call_vllm(prompt, model=os.getenv("MODEL_NAME"), options=vllm_options)
+    result_text = call_ollama(prompt, model=os.getenv("MODEL_NAME"), options=ollama_options)
 
     print("\n" + "="*50)
     print(f"🤖 RAW LLM OUTPUT ({req.assessment_type}):")
@@ -358,8 +367,8 @@ You are a fair and objective academic assessor. Your task is to accurately mark 
 STRICT: Ensure 'marks_awarded' is an integer between 0 and {req.max_marks}.
 """
 
-    # 3. Call vLLM
-    raw_response = call_vllm(prompt)
+    # 3. Call Ollama
+    raw_response = call_ollama(prompt)
 
     # 4. Parse JSON
     cleaned_json = clean_and_extract_json(raw_response)

@@ -227,12 +227,41 @@ class CourseListView(generics.ListAPIView):
         # For non-instructors, return all courses
         return Course.objects.all()
 
-# ✅ ADD THIS NEW VIEW
-class CourseDetailView(generics.RetrieveAPIView):
-    """Get details for a SINGLE course"""
-    queryset = Course.objects.all()
-    serializer_class = CourseSerializer
+# ✅ UPDATED: Returns course + section info for the logged-in instructor
+class CourseDetailView(APIView):
+    """Get details for a SINGLE course, enriched with section data."""
     permission_classes = [AllowAny]
+
+    def get(self, request, pk, *args, **kwargs):
+        course = get_object_or_404(Course, pk=pk)
+        data = {
+            "id": course.id,
+            "code": course.code,
+            "title": course.title,
+            "credit_hours": course.credit_hours,
+        }
+
+        # If the user is an authenticated instructor, attach their section info
+        if request.user.is_authenticated:
+            section = CourseSection.objects.filter(
+                course=course, instructor=request.user
+            ).first()
+
+            if section:
+                student_count = CourseEnrollment.objects.filter(section=section).count()
+                data["section_name"] = section.section_name
+                data["enrollment_code"] = section.enrollment_code
+                data["students_count"] = student_count
+            else:
+                # Fallback: grab the first section for this course
+                section = CourseSection.objects.filter(course=course).first()
+                if section:
+                    student_count = CourseEnrollment.objects.filter(section=section).count()
+                    data["section_name"] = section.section_name
+                    data["enrollment_code"] = section.enrollment_code
+                    data["students_count"] = student_count
+
+        return Response(data)
 
 class CourseDetailBySectionView(APIView):
     """Get course details using a CourseSection UUID."""

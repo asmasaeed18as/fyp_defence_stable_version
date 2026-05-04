@@ -18,6 +18,7 @@ const InstructorCourseDetail = () => {
   const [uploadError, setUploadError] = useState("");
   const [editingCloId, setEditingCloId] = useState(null);
   const [editFormData, setEditFormData] = useState({ text: "", bloom_level: "" });
+  const [error, setError] = useState(null);
 
   const fetchCourseData = async () => {
     try {
@@ -32,6 +33,7 @@ const InstructorCourseDetail = () => {
       setAssessments(assessRes.data);
     } catch (err) {
       console.error("Error loading course data:", err);
+      setError("Course not found or failed to load.");
     } finally {
       setLoading(false);
     }
@@ -103,6 +105,20 @@ const InstructorCourseDetail = () => {
     );
   }
 
+  if (error || !course) {
+    return (
+      <div className="main-viewport">
+        <div className="glass-card">
+          <h2>Error</h2>
+          <p>{error || "Course not found."}</p>
+          <button className="action-pill" onClick={() => navigate("/dashboard")}>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="main-viewport fade-in">
       <header className="page-header course-detail-header">
@@ -119,10 +135,6 @@ const InstructorCourseDetail = () => {
           <div className="course-detail-chip">
             <span className="course-detail-label">Enrollment Code</span>
             <strong>{course.enrollment_code || "N/A"}</strong>
-          </div>
-          <div className="course-detail-chip">
-            <span className="course-detail-label">Students</span>
-            <strong>{course.students_count ?? 0}</strong>
           </div>
         </div>
       </header>

@@ -44,7 +44,7 @@ const InstructorView = ({ user, data }) => {
           {courses.length > 0 ? (
             courses.map((course) => (
               <div
-                key={course.course_id}
+                key={course.id}
                 className="glass-card course-card instructor-course-card instructor-course-card--minimal"
                 onClick={() => navigate(`/dashboard/courses/${course.course_id}`)}
               >

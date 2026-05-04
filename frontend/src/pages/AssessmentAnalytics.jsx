@@ -167,7 +167,7 @@ const AssessmentAnalytics = () => {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", flex: 1, minHeight: "320px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "20px", flex: 1, minHeight: "320px" }}>
           <div className="card-section question-card-glass" style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px" }}>
             <label className="section-label" style={{ marginBottom: "15px" }}>CLO Attainment (%)</label>
             <ResponsiveContainer width="100%" height={300}>
@@ -184,21 +184,6 @@ const AssessmentAnalytics = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="card-section question-card-glass" style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px" }}>
-            <label className="section-label" style={{ marginBottom: "15px" }}>Obtained vs Possible Marks</label>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={cloData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#000000', fontSize: 14 }} interval={0} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-main)', fontSize: 12 }} />
-                <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 20px rgba(0,0,0,0.1)" }} />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: "10px" }} />
-                <Bar name="Obtained" dataKey="obtained" fill="#7B61FF" radius={[6, 6, 0, 0]} barSize={25} />
-                <Bar name="Possible" dataKey="possible" fill="#f965b9" radius={[6, 6, 0, 0]} barSize={25} />
               </BarChart>
             </ResponsiveContainer>
           </div>
